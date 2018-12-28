@@ -2,22 +2,39 @@ library(synder)
 library(ape)
 library(dplyr)
 library(XLConnect)
+library(knitr)
 
-tree <- read.tree('arabidopsis/tree')
-pdf('tree.pdf')
+dir.create("output", showWarnings=FALSE)
+
+get_in <- function(f){
+  fin <- file.path("arendsee", "synder-nfyc", "archive", f) 
+  if(!file.exists(fin)){
+    stop("Cannot find file ", fin)
+  }
+  fin
+}
+get_out <- function(f){
+  if(!dir.exists("output")){
+    dir.make("output")
+  }
+  file.path("output", f)
+}
+
+tree <- read.tree(get_in('tree.newick'))
+pdf(get_out('tree.pdf'))
 plot(tree)
 dev.off()
 
 collect_NFYC_data <- function(
-    syn_file,            # syn_file="arabidopsis/syn/at-vs-al.syn"
-    fgff_file,           # fgff_file="arabidopsis/gff/yc.gff"
-    tgff_file,           # tgff_file="arabidopsis/gff/al.gff"
-    gene_map_file,       # gene_map_file="arabidopsis/yc.tab"
-    tblastn_file,        # tblastn_file="arabidopsis/al.blast.tab"
-    blastp_file = NULL,  # blastp_file="arabidopsis/yc-vs-al.blast.tab"
-    trans  = "d",        # trans="d"
-    k      = 0L,         # k=0L
-    r      = 0           # r=0
+    syn_file,
+    fgff_file,
+    tgff_file,
+    gene_map_file,
+    tblastn_file,
+    blastp_file = NULL,
+    trans  = "d",
+    k      = 0L,
+    r      = 0
 ){
   extractNameFromAttr <- function(x){
     sub(".*Name=([^;]+).*", "\\1", x)
@@ -78,23 +95,28 @@ collect_NFYC_data <- function(
 }
 
 files <- list(
-  al=list(syn="syn/at-vs-al.syn", gff="gff/al.gff", tblastn="al.blast.tab", blastp="yc-vs-al.blast.tab"),
-  cr=list(syn="syn/at-vs-cr.syn", gff="gff/cr.gff", tblastn="cr.blast.tab"),
-  br=list(syn="syn/at-vs-br.syn", gff="gff/br.gff", tblastn="br.blast.tab"),
-  es=list(syn="syn/at-vs-es.syn", gff="gff/es.gff", tblastn="es.blast.tab")
+  Arabidopsis_lyrata=list(syn="at-vs-al.tab", gff="al.gff", tblastn="al.blast.tab", blastp="yc-vs-al.blast.tab"),
+  Capsella_rubella=list(syn="at-vs-cr.tab", gff="cr.gff", tblastn="cr.blast.tab"),
+  Brassica_rapa=list(syn="at-vs-br.tab", gff="br.gff", tblastn="br.blast.tab"),
+  Eutrema_salsugineum=list(syn="at-vs-es.tab", gff="es.gff", tblastn="es.blast.tab")
 )
 
-results <- lapply(files, function(x){
-  collect_NFYC_data(
-    fgff_file     = "arabidopsis/gff/yc.gff",
-    gene_map_file = "arabidopsis/yc.tab",
-    syn_file      = paste0("arabidopsis/", x$syn),
-    tgff_file     = paste0("arabidopsis/", x$gff),
-    tblastn_file  = paste0("arabidopsis/", x$tblastn),
-    blastp_file   = if(!is.null(x$blastp)){paste0("arabidopsis/", x$blastp)}else{NULL},
-    k=0L, r=0, trans="d"
-  )
-})
+if(file.exists(get_out("results.Rds"))){
+  results <- readRDS(get_out("results.Rds"))
+} else {
+  results <- lapply(files, function(x){
+    collect_NFYC_data(
+      fgff_file     = get_in("nfyc.gff"),
+      gene_map_file = get_in("nfyc-map.tab"),
+      syn_file      = get_in(x$syn),
+      tgff_file     = get_in(x$gff),
+      tblastn_file  = get_in(x$tblastn),
+      blastp_file   = if(!is.null(x$blastp)) {get_in(x$blastp)} else {NULL},
+      k=0L, r=0, trans="d"
+    )
+  })
+  saveRDS(results, get_out("results.Rds"))
+}
 
 ### ===========================================================================
 
@@ -280,16 +302,15 @@ key_sheet <- as.data.frame(matrix(ncol=2, byrow=TRUE, c(
 )))
 colnames(key_sheet) <- c("column", "description")
 
-require(ape)
-tree <- read.tree('arabidopsis/tree')
-png('tree.png')
+tree <- read.tree(get_in('tree.newick'))
+png(get_out('tree.png'))
 plot(tree)
 dev.off()
 
 # increase memory to handle large files
 options(java.parameters = "-Xmx1024m")
-file.remove("nfyc.xlsx")
-wb <- XLConnect::loadWorkbook("nfyc.xlsx", create=TRUE)
+file.remove(get_out("nfyc.xlsx"))
+wb <- XLConnect::loadWorkbook(get_out("nfyc.xlsx"), create=TRUE)
 XLConnect::createSheet(wb, "Key")
 XLConnect::writeWorksheet(wb, data=key_sheet, sheet="Key")
 XLConnect::createSheet(wb, "Tree")
@@ -300,7 +321,7 @@ XLConnect::createName(
 )
 XLConnect::addImage(
   wb,
-  filename     = "tree.png",
+  filename     = get_out("tree.png"),
   name         = 'Tree',
   originalSize = TRUE
 )
@@ -319,4 +340,6 @@ addTable(wb, feature_maps, "synder_featureMap")
 addTable(wb, genic_tblastn, "tblastn_genic")
 addTable(wb, nongenic_tblastn, "tblastn_non-genic")
 XLConnect::saveWorkbook(wb)
+
+write(knitr::kable(count_summaries[, 1:5], format='latex'), get_out("count_summaries.tex"))
 ```
