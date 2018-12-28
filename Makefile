@@ -1,0 +1,2 @@
+all:
+	Rscript nfyc.R
