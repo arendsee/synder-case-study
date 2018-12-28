@@ -3,6 +3,8 @@ library(ape)
 library(dplyr)
 library(XLConnect)
 library(knitr)
+library(ggplot2)
+library(reshape2)
 
 dir.create("output", showWarnings=FALSE)
 
@@ -15,7 +17,7 @@ get_in <- function(f){
 }
 get_out <- function(f){
   if(!dir.exists("output")){
-    dir.make("output")
+    dir.create("output")
   }
   file.path("output", f)
 }
@@ -341,5 +343,51 @@ addTable(wb, genic_tblastn, "tblastn_genic")
 addTable(wb, nongenic_tblastn, "tblastn_non-genic")
 XLConnect::saveWorkbook(wb)
 
-write(knitr::kable(count_summaries[, 1:5], format='latex'), get_out("count_summaries.tex"))
+write(knitr::kable(count_summaries[, 1:6], format='latex'), get_out("count_summaries.tex"))
+
+m <- reshape2::melt(
+  count_summaries[, 1:6],
+  id.vars=c("fseqid", "fgene_name", "group")
+) %>%
+  dplyr::rename(target_species = group, count=value, group=variable) %>%
+  dplyr::mutate(
+    gene_name = factor(fgene_name, levels=paste0("NF-YC", 1:13)),
+    target_species = factor(
+      target_species,
+      levels=c(
+        "Arabidopsis_lyrata",
+        "Capsella_rubella",
+        "Brassica_rapa",
+        "Eutrema_salsugineum"
+      )
+    )
+  )
+m$group <- factor(
+  as.character(m$group),
+  levels=c(
+    "n_synder_hits",
+    "n_tblastn_hits",
+    "n_tblastn_synder_targets"
+  )
+)
+
+pdf(get_out("count_fig.pdf"))
+
+legend_labels <- c("synder", "tBLASTn", "tBLASTn+synder")
+ggplot(m) +
+  geom_point(aes(x=gene_name, y=count, shape=group, color=group), size=2) +
+  geom_hline(aes(yintercept=0), alpha=0.2) +
+  geom_hline(aes(yintercept=13), alpha=0.2) +
+  facet_grid(target_species ~ .) +
+  scale_shape_manual(values = c(4, 20, 0), labels=legend_labels) +
+  scale_color_discrete(labels=legend_labels) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle=270, hjust=0, vjust=1),
+    legend.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  scale_y_continuous(minor_breaks = seq(0 , 20, 1), breaks = seq(0, 20, 5))
+
+dev.off()
 ```
