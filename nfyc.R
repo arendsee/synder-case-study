@@ -1,6 +1,7 @@
 library(synder)
 library(ape)
 library(dplyr)
+library(XLConnect)
 
 tree <- read.tree('arabidopsis/tree')
 pdf('tree.pdf')
@@ -26,10 +27,10 @@ collect_NFYC_data <- function(
   syn  <- synder::as_synmap(syn_file)
 
   # load focal GFF
-  fgff <- .tidy_gff(fgff_file, prefix="f", fromAttr=extractNameFromAttr)
+  fgff <- synder:::.tidy_gff(fgff_file, prefix="f", fromAttr=extractNameFromAttr)
 
   # load the transcribed intervals target GFF
-  tgff <- .tidy_gff(tgff_file, prefix="t", fromAttr=extractNameFromAttr)
+  tgff <- synder:::.tidy_gff(tgff_file, prefix="t", fromAttr=extractNameFromAttr)
   # FIXME: do I have to restrict this to mRNA?
   tgff <- tgff[tgff$ttype == "mRNA", ]
 
@@ -44,7 +45,7 @@ collect_NFYC_data <- function(
 
   # map focal genes to target search intervals 
   srcres <- synder::search(syn, synder::as_gff(fgff_file), k=k,r=r,trans=trans)
-  srcres <- .tidy_searchResult(srcres, fromAttr=extractNameFromAttr)
+  srcres <- synder:::.tidy_searchResult(srcres, fromAttr=extractNameFromAttr)
 
   tblastn_si_map <- synder::make_tblastn_si_map(tblastn_file, srcres, fmap=fmap)
   tblastn_gene_map <- synder::make_tblastn_gene_map(tblastn_file, tgff)
@@ -70,7 +71,10 @@ collect_NFYC_data <- function(
   tblastn_si_map <- tblastn_si_map$blastmap
   tblastn_gene_map <- tblastn_gene_map$blastmap
 
-  .namedlist(syn, tgff, fgff, nfyc, srcres, tblastn_raw, tblastn_si_map, tblastn_gene_map, blastp_raw, blastp_map, feats)
+  synder:::.namedlist(
+    syn, tgff, fgff, nfyc, srcres,
+    tblastn_raw, tblastn_si_map, tblastn_gene_map,
+    blastp_raw, blastp_map, feats)
 }
 
 files <- list(
@@ -99,7 +103,7 @@ tabulate_from <- function(xs, key){
   for(grp in names(ys)){
     ys[[grp]]$group <- grp
   }
-  do.call(rbind, ys) %>% .remove_rownames
+  do.call(rbind, ys) %>% synder:::.remove_rownames()
 }
 
 nuniq <- function(x){ length(unique(x)) }
@@ -140,7 +144,7 @@ tblastns <- tabulate_from(results, "tblastn_raw") %>%
   dplyr::filter(tn_evalue < 0.001)
 tblastns$id <- 1:nrow(tblastns)
 
-tblastn_against_proteins <- .overlaps(
+tblastn_against_proteins <- synder:::.overlaps(
   x=tblastns, xid="tchr", xa="tn_sstart", xb="tn_send",
   y=tgffs,    yid="tchr", ya="tstart",    yb="tstop"
 )
@@ -163,7 +167,7 @@ tblastn_si_maps <- dplyr::filter(tblastn_si_maps, tn_evalue < 0.001)
 # Find overlaps with tgff protein features, this resoves the above exon issue
 tblastn_synder_hits <-
   # get between tBLASTn hits and target genes
-  .overlaps(
+  synder:::.overlaps(
     x=tblastn_si_maps, xid="tchr", xa="tn_tstart", xb="tn_tstop",
     y=tgffs, yid="tchr", ya="tstart", yb="tstop"
   ) %>%
@@ -315,6 +319,4 @@ addTable(wb, feature_maps, "synder_featureMap")
 addTable(wb, genic_tblastn, "tblastn_genic")
 addTable(wb, nongenic_tblastn, "tblastn_non-genic")
 XLConnect::saveWorkbook(wb)
-
-require(knitr)
 ```
