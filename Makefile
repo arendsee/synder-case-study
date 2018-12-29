@@ -1,5 +1,5 @@
 all:
-	Rscript nfyc.R
+	Rscript main.R
 
 clean:
 	rm -rf output
