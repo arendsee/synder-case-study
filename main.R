@@ -27,7 +27,10 @@ results <- collect_results(
     Eutrema_salsugineum = list(syn="at-vs-es.tab", gff="es.gff", tblastn="es.blast.tab")
   ),
   fgff_file="nfyc.gff",
-  gene_map_file="nfyc-map.tab"
+  gene_map_file="nfyc-map.tab",
+  trans  = "d",
+  k      = 0L,
+  r      = 1e-4
 )
 
 result <- collate_results(results) 
@@ -45,6 +48,10 @@ make_spreadsheet(
 )
 
 make_tables(result)
+
+pdf(get_out("wonky.pdf"))
+  wonky_plot()
+dev.off()
 
 pdf(get_out("count_fig.pdf"))
   nameless_plot(result$count_summaries)

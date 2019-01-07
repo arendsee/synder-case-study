@@ -3,7 +3,7 @@
 #    and BLAST results
 #  * sanitize the results into consistently named, tidy data.frames 
 
-collect_results <- function(files, fgff_file, gene_map_file){
+collect_results <- function(files, fgff_file, gene_map_file, ...){
   if(file.exists(get_out("results.Rds"))){
     results <- readRDS(get_out("results.Rds"))
   } else {
@@ -15,7 +15,7 @@ collect_results <- function(files, fgff_file, gene_map_file){
         tgff_file     = get_in(x$gff),
         tblastn_file  = get_in(x$tblastn),
         blastp_file   = if(!is.null(x$blastp)) {get_in(x$blastp)} else {NULL},
-        k=0L, r=0, trans="d"
+        ...
       )
     })
     saveRDS(results, get_out("results.Rds"))
@@ -30,9 +30,7 @@ collect_results <- function(files, fgff_file, gene_map_file){
     gene_map_file,
     tblastn_file,
     blastp_file = NULL,
-    trans  = "d",
-    k      = 0L,
-    r      = 0
+    ...
 ){
   extractNameFromAttr <- function(x){
     sub(".*Name=([^;]+).*", "\\1", x)
@@ -59,32 +57,28 @@ collect_results <- function(files, fgff_file, gene_map_file){
   fmap <- nfyc[, c(3,2)]
 
   # map focal genes to target search intervals 
-  srcres <- synder::search(syn, synder::as_gff(fgff_file), k=k,r=r,trans=trans)
+  srcres <- synder::search(syn, synder::as_gff(fgff_file), ...)
   srcres <- synder:::.tidy_searchResult(srcres, fromAttr=extractNameFromAttr)
 
   tblastn_si_map <- synder::make_tblastn_si_map(tblastn_file, srcres, fmap=fmap)
   tblastn_gene_map <- synder::make_tblastn_gene_map(tblastn_file, tgff)
+  tblastn_raw <- load_tblastn_file(tblastn_file, fmap=fmap)
 
   if(is.null(blastp_file)){
     blastp_raw <- NULL 
     blastp_map <- NULL
   } else {
-    x <- make_blastp_map(
+    blastp_raw <- load_blastp_file(blastp_file, fmap=fmap)
+    blastp_map <- make_blastp_map(
       blastp_file=blastp_file,
       tgff=tgff,
       fgff=fgff,
       srcres=srcres,
       fmap=fmap
     )
-    blastp_raw <- x$blastraw
-    blastp_map <- x$blastmap
   }
 
   feats <- featureMap(srcres=srcres, fgff=fgff, tgff=tgff)
-
-  tblastn_raw <- tblastn_si_map$blastraw
-  tblastn_si_map <- tblastn_si_map$blastmap
-  tblastn_gene_map <- tblastn_gene_map$blastmap
 
   synder:::.namedlist(
     syn, tgff, fgff, nfyc, srcres,

@@ -64,9 +64,21 @@ collate_results <- function(results){
   genic_tblastn <- tblastn_against_proteins %>% dplyr::select(-xid, -yid, -id)
 
   ### ===========================================================================
-  tblastn_si_maps <-  tabulate_from(results, "tblastn_si_map")
-  tblastn_si_maps$cset <- as.character(tblastn_si_maps$cset)
-  tblastn_si_maps <- dplyr::filter(tblastn_si_maps, tn_evalue < 0.001)
+  tblastn_si_maps <-  tabulate_from(results, "tblastn_si_map") %>%
+    dplyr::mutate(cset = as.character(cset)) %>%
+    # extract rows where the protein coded for by query gene i has a tBLASTn hit
+    # within a search interval inferred for the same gene. 
+    dplyr::filter(fseqid == si_fseqid) %>%
+    # get strand info for the focal species
+    merge(fstrand_map) %>%
+    # get the strand of the BLAST hit (-1,-2,-3 are '-' strand, 1,2,3 are '+')
+    dplyr::mutate(hit_strand = ifelse(tn_tframe > 0, '+', '-')) %>%
+    # determine whether the strands of the synder intervals and the tBLASTn hit strand agree
+    dplyr::mutate(strand_agreement = 
+      (orientation == '+' & (fstrand == hit_strand)) |
+      (orientation == '-' & (fstrand != hit_strand))
+    ) %>%
+    dplyr::filter(tn_evalue < 0.001)
 
   # Find overlaps with tgff protein features, this resoves the above exon issue
   tblastn_synder_hits <-
@@ -74,18 +86,6 @@ collate_results <- function(results){
     synder:::.overlaps(
       x=tblastn_si_maps, xid="tchr", xa="tn_tstart", xb="tn_tstop",
       y=tgffs, yid="tchr", ya="tstart", yb="tstop"
-    ) %>%
-    # extract rows where the protein coded for by query gene i has a tBLASTn hit
-    # within a search interval inferred for the same gene. 
-    dplyr::filter(fseqid == si_fseqid) %>%
-    # get the strand of the BLAST hit (-1,-2,-3 are '-' strand, 1,2,3 are '+')
-    dplyr::mutate(hit_strand = ifelse(tn_tframe > 0, '+', '-')) %>%
-    # get strand info for the focal species
-    merge(fstrand_map) %>%
-    # determine whether the strands of the synder intervals and the target genes agree
-    dplyr::mutate(strand_agreement = 
-      (orientation == '+' & (fstrand == tstrand)) |
-      (orientation == '-' & (fstrand != tstrand))
     ) %>%
     dplyr::select(
       group, fseqid, fchr, fstrand, tchr, fprotein, tn_tstart, tn_tstop, prot_fstart,
@@ -151,5 +151,5 @@ collate_results <- function(results){
   # assert that there is one row for each focal gene / target species pair
   stopifnot(nuniq(results[[1]]$nfyc$fseqid) * nuniq(names(results)) == nrow(count_summaries))
 
-  synder:::.namedlist(count_summaries, tblastn_synder_hits, srcress, feature_maps, genic_tblastn, nongenic_tblastn)
+  synder:::.namedlist(count_summaries, tblastn_si_maps, tblastn_synder_hits, srcress, feature_maps, genic_tblastn, nongenic_tblastn)
 }
