@@ -63,7 +63,7 @@ wonky_plot <- function(){
     merge(gene2name, by="fseqid") %>%
     dplyr::select(fid=gene, group, score=si_score, cset=cset) %>%
     dplyr::distinct() %>%
-    dplyr::mutate(xid = paste0(fid, "_synder"))
+    dplyr::mutate(xid = "synder")
 
   # make table of edges between tBLASTn and synder hits
   m_links <-
@@ -76,14 +76,14 @@ wonky_plot <- function(){
     dplyr::select(fid=gene, group, synder=si_score, blast=levalue, cset, linkid) %>%
     melt(id.vars=c("fid", "group", "cset", "linkid")) %>%
     dplyr::rename(score=value) %>%
-    dplyr::mutate(xid = paste(fid, variable, sep="_"))
+    dplyr::mutate(xid = variable)
 
   # make list of blast scores
   .load <- function(x, isgen){
     merge(result[[x]], prot2name) %>%
     dplyr::mutate(genic=isgen, score=as_levalue(tn_evalue)) %>%
     dplyr::select(fid=gene, group, score, genic) %>%
-    dplyr::mutate(xid = paste0(fid, "_blast"))
+    dplyr::mutate(xid = "blast")
   }
   m_blast <- rbind(.load("genic_tblastn", "Genic"), .load("nongenic_tblastn", "Non-Genic"))
 
@@ -99,19 +99,24 @@ wonky_plot <- function(){
   m_synder$score <- normalize_synder_score(m_synder$score)
   m_blast$score <- normalize_blast_score(m_blast$score)
 
+  m_links$fid <- factor(sub("NF-YC", "", m_links$fid), levels=as.character(1:13))
+  m_synder$fid <- factor(sub("NF-YC", "", m_synder$fid), levels=as.character(1:13))
+  m_blast$fid <- factor(sub("NF-YC", "", m_blast$fid), levels=as.character(1:13))
+
   # normalize scores 
 
   ggplot() +
     geom_line(data=m_links, aes(x=xid, y=score, group=linkid), alpha=0.3) +
     geom_point(data=m_links,aes(x=xid, y=score), size=0.2) +
-    facet_grid(group ~ .) +
+    facet_grid(group ~ fid) +
     theme_bw() +
     theme(
       axis.text.x = element_text(angle=270, hjust=0, vjust=1),
       legend.title = element_blank(),
       legend.position = "bottom"
     ) +
-    scale_shape_manual(values = c(4, 0)) +
-    geom_point(data=m_blast, aes(x=xid, y=score, color=genic, shape=genic)) +
+    scale_shape_manual(values = c(1, 4)) + # 4 : x
+    scale_color_manual(values = c("darkgrey", "red")) +
+    geom_point(data=m_blast, aes(x=xid, y=score, shape=genic, color=genic)) +
     geom_point(data=m_synder, aes(x=xid, y=score), color="blue")
 }
