@@ -99,24 +99,41 @@ wonky_plot <- function(){
   m_synder$score <- normalize_synder_score(m_synder$score)
   m_blast$score <- normalize_blast_score(m_blast$score)
 
-  m_links$fid <- factor(sub("NF-YC", "", m_links$fid), levels=as.character(1:13))
-  m_synder$fid <- factor(sub("NF-YC", "", m_synder$fid), levels=as.character(1:13))
-  m_blast$fid <- factor(sub("NF-YC", "", m_blast$fid), levels=as.character(1:13))
+  gene_levels <- paste0("NF-YC", 1:13)
+  m_links$fid <- factor(m_links$fid, levels=gene_levels)
+  m_synder$fid <- factor(m_synder$fid, levels=gene_levels)
+  m_blast$fid <- factor(m_blast$fid, levels=gene_levels)
 
-  # normalize scores 
+  # abbreviate names (e.g Zea mays -> Z. mays) and order them relative
+  # to alphabetic ordering
+  clean_names <- function(x, ord){
+    x <- sub("([A-Z])[a-z]+_(.*)", "\\1. \\2", x)
+    x <- factor(x, levels=sort(unique(x))[ord]) 
+    x
+  }
+  m_links$group <- clean_names(m_links$group, c(1,3,2,4))
+  m_synder$group <- clean_names(m_synder$group, c(1,3,2,4))
+  m_blast$group <- clean_names(m_blast$group, c(1,3,2,4))
 
   ggplot() +
-    geom_line(data=m_links, aes(x=xid, y=score, group=linkid), alpha=0.3) +
+    geom_line(data=m_links, aes(x=xid, y=score, group=linkid), alpha=0.2) +
     geom_point(data=m_links,aes(x=xid, y=score), size=0.2) +
     facet_grid(group ~ fid) +
+    ylab("Normalized Score") +
     theme_bw() +
     theme(
       axis.text.x = element_text(angle=270, hjust=0, vjust=1),
       legend.title = element_blank(),
-      legend.position = "bottom"
+      legend.position = "bottom",
+      panel.spacing = unit(0, "lines"),
+      panel.grid.minor = element_blank(),
+      strip.text.x = element_text(size = 6),
+      strip.text.y = element_text(size = 8, face="italic"),
+      strip.background = element_blank(),
+      axis.title.x = element_blank()
     ) +
     scale_shape_manual(values = c(1, 4)) + # 4 : x
-    scale_color_manual(values = c("darkgrey", "red")) +
+    scale_color_manual(values = c("darkgray", "red")) +
     geom_point(data=m_blast, aes(x=xid, y=score, shape=genic, color=genic)) +
     geom_point(data=m_synder, aes(x=xid, y=score), color="blue")
 }
